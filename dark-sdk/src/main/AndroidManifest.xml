@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tengban.sdk.dark">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+    </application>
+
+</manifest>
