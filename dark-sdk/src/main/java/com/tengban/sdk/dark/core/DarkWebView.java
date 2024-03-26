@@ -79,15 +79,16 @@ public class DarkWebView extends WebView {
 
             if(!TextUtils.isEmpty(mJsUrl)) {
                 try {
-                    view.loadUrl("javascript:(function(){" +
-                            "var script=document.createElement('script');" +
-                            "script.src='" + mJsUrl + "';" +
-                            "document.head.appendChild(script);" +
-                            "})();");
+                    view.loadUrl("javascript:(function() {" +
+                            "    var script = document.createElement('script');" +
+                            "    script.src = '" + mJsUrl + "';" +
+                            "    document.head.appendChild(script);" +
+                            "})()");
                 } catch (Throwable t) {
                     // Eat
                 }
-                mJsUrl = null;
+                // onPageFinished可能会被回调多次，导致js的执行被打断。所以每次回调的时候我们都执行一下js
+                // mJsUrl = null;
             }
         }
     };
@@ -95,11 +96,17 @@ public class DarkWebView extends WebView {
     private final WebChromeClient mWebChromeClient = new WebChromeClient() {
         @Override
         public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+            if(result != null) {
+                result.confirm();
+            }
             return true;
         }
 
         @Override
         public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+            if(result != null) {
+                result.confirm();
+            }
             return true;
         }
 
