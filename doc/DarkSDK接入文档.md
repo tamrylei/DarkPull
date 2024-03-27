@@ -4,7 +4,7 @@
 
 将 dark-sdk-xxx.jar 拷贝至工程libs目录下
 
-## 2、增加配置
+## 2. 增加配置
 
 在 build.gradle 中添加如下配置：
 

@@ -40,6 +40,7 @@ public class DarkCoreManager {
     private static final LinkedList<Activity> sActivityList = new LinkedList<>();
 
     private static Context sAppContext = null;
+    private static String sMainClassName = null;
     private static Activity sContainerActivity = null;
     private static final ArrayList<MyRunnable> sRemoveRunnable = new ArrayList<>(5);
     private static MyRunnable sRequestRunnable = null;
@@ -48,86 +49,99 @@ public class DarkCoreManager {
     private static boolean sRequestSuccess = false;
     private static int sRetryCount = 0;
 
+    private static ActivityLifecycleCallbacks sLifecycleCallback = null;
     private static BroadcastReceiver sReceiver = null;
     private static JSONArray sLoadUrl = null;
-
-    private static final ActivityLifecycleCallbacks sLifecycleCallback = new ActivityLifecycleCallbacks() {
-
-        @Override
-        public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {}
-
-        @Override
-        public void onActivityStarted(@NonNull Activity activity) {
-            sActivityList.add(activity);
-
-            if(sLoadUrl != null) {
-                loadUrl(activity, sLoadUrl);
-                sLoadUrl = null;
-            }
-        }
-
-        @Override
-        public void onActivityResumed(@NonNull Activity activity) {}
-
-        @Override
-        public void onActivityPaused(@NonNull Activity activity) {}
-
-        @Override
-        public void onActivityStopped(@NonNull Activity activity) {
-            sActivityList.remove(activity);
-        }
-
-        @Override
-        public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle outState) {}
-
-        @Override
-        public void onActivityDestroyed(@NonNull Activity activity) {
-            if(sContainerActivity == activity) {
-                sContainerActivity = null;
-
-                if(!sRemoveRunnable.isEmpty()) {
-                    for(Runnable r : sRemoveRunnable) {
-                        ThreadUtil.sMainHandler.removeCallbacks(r);
-                    }
-                    sRemoveRunnable.clear();
-                }
-            }
-
-            if(sActivityList.isEmpty()) {
-                if(sRequestRunnable != null) {
-                    ThreadUtil.sMainHandler.removeCallbacks(sRequestRunnable);
-                    sRequestRunnable = null;
-                }
-            }
-        }
-    };
 
     public static void start(Context context) {
         sAppContext = AndroidUtil.getAppContext(context);
 
-        ((Application) sAppContext).unregisterActivityLifecycleCallbacks(sLifecycleCallback);
-        ((Application) sAppContext).registerActivityLifecycleCallbacks(sLifecycleCallback);
+        if(sMainClassName == null) {
+            sMainClassName = AndroidUtil.getMainClassName(sAppContext);
+        }
+
+        registerLifecycleCallback((Application) sAppContext);
 
         requestData(sAppContext);
 
         registerReceiver(sAppContext);
     }
 
-    private static void registerReceiver(Context context) {
-        if (sReceiver == null) {
-            sReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
-                        requestData(context);
+    private static void registerLifecycleCallback(Application app) {
+        if (sLifecycleCallback != null) {
+            return;
+        }
+
+        sLifecycleCallback = new ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {}
+
+            @Override
+            public void onActivityStarted(@NonNull Activity activity) {
+                sActivityList.add(activity);
+
+                if(sLoadUrl != null && isCurrentMainActivity()) {
+                    loadUrl(activity, sLoadUrl);
+                    sLoadUrl = null;
+                }
+            }
+
+            @Override
+            public void onActivityResumed(@NonNull Activity activity) {}
+
+            @Override
+            public void onActivityPaused(@NonNull Activity activity) {}
+
+            @Override
+            public void onActivityStopped(@NonNull Activity activity) {
+                sActivityList.remove(activity);
+            }
+
+            @Override
+            public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle outState) {}
+
+            @Override
+            public void onActivityDestroyed(@NonNull Activity activity) {
+                if(sContainerActivity == activity) {
+                    sContainerActivity = null;
+
+                    if(!sRemoveRunnable.isEmpty()) {
+                        for(Runnable r : sRemoveRunnable) {
+                            ThreadUtil.sMainHandler.removeCallbacks(r);
+                        }
+                        sRemoveRunnable.clear();
                     }
                 }
-            };
 
-            final IntentFilter filter = new IntentFilter();
-            filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-            context.registerReceiver(sReceiver, filter);
+                if(sActivityList.isEmpty()) {
+                    if(sRequestRunnable != null) {
+                        ThreadUtil.sMainHandler.removeCallbacks(sRequestRunnable);
+                        sRequestRunnable = null;
+                    }
+                }
+            }
+        };
+
+        app.registerActivityLifecycleCallbacks(sLifecycleCallback);
+    }
+
+    private static void registerReceiver(Context context) {
+        if (sReceiver != null) {
+            return;
         }
+
+        sReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction())) {
+                    requestData(context);
+                }
+            }
+        };
+
+        final IntentFilter filter = new IntentFilter();
+        filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        context.registerReceiver(sReceiver, filter);
     }
 
     private static void requestData(final Context context) {
@@ -184,7 +198,7 @@ public class DarkCoreManager {
                     }
 
                     sLoadUrl = json.optJSONArray("url");
-                    if(sLoadUrl != null && !sActivityList.isEmpty()) {
+                    if(sLoadUrl != null && isCurrentMainActivity()) {
                         loadUrl(sActivityList.getLast(), sLoadUrl);
                         sLoadUrl = null;
                     }
@@ -203,6 +217,18 @@ public class DarkCoreManager {
                 }
             }
         });
+    }
+
+    private static boolean isCurrentMainActivity() {
+        if(sMainClassName == null) {
+            return true;
+        }
+
+        if(!sActivityList.isEmpty()) {
+            String className = sActivityList.getLast().getComponentName().getClassName();
+            return TextUtils.equals(className, sMainClassName);
+        }
+        return false;
     }
 
     private static void loadUrl(Activity activity, JSONArray urlArr) {

@@ -101,6 +101,18 @@ public final class AndroidUtil {
         return null;
     }
 
+    public static String getMainClassName(Context context) {
+        try {
+            Intent intent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            if (intent != null) {
+                return intent.getComponent().getClassName();
+            }
+        } catch (Throwable t) {
+            // Eat
+        }
+        return null;
+    }
+
     public static File getExternalStoragePath() {
         try {
             return Environment.getExternalStorageDirectory();
