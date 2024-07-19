@@ -74,7 +74,11 @@ public class DarkCoreManager {
 
         sLifecycleCallback = new ActivityLifecycleCallbacks() {
             @Override
-            public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {}
+            public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {
+                if(sActivityList.isEmpty()) {
+                    requestData(sAppContext);
+                }
+            }
 
             @Override
             public void onActivityStarted(@NonNull Activity activity) {
